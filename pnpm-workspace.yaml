@@ -1,0 +1,4 @@
+packages:
+  - "."
+  - "spike-link"
+  - "spike-rc"
