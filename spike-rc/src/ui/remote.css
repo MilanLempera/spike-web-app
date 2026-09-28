@@ -100,7 +100,7 @@
 .remote-arrows [data-key="ArrowRight"]{grid-area:right}
 .remote-arrows [data-key="KeyF"]{grid-area:extraF}
 .remote-arrow-hint{margin:8px 0 12px;text-align:center;text-transform:none;font:600 12px Inter,sans-serif;letter-spacing:0}
-.remote-key{min-height:62px;border:1px solid rgba(60,246,255,.22);border-radius:4px;background:linear-gradient(180deg,#132132,#0c1622);color:#c8eef8;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;box-shadow:0 6px 0 #071018,0 0 0 1px rgba(60,246,255,.08) inset}
+.remote-key{min-height:62px;border:1px solid rgba(60,246,255,.22);border-radius:4px;background:linear-gradient(180deg,#132132,#0c1622);color:#c8eef8;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;box-shadow:0 6px 0 #071018,0 0 0 1px rgba(60,246,255,.08) inset;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:manipulation}
 .remote-key strong{font:800 16px Orbitron,sans-serif}
 .remote-key.fn{border-color:rgba(255,61,172,.35);color:#ffd0ea}
 .remote-arrows .remote-key em{letter-spacing:.08em;color:#9bb3c0}

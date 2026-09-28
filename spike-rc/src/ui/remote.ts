@@ -667,6 +667,7 @@ export class RemotePad {
     });
     cockpit.querySelectorAll<HTMLButtonElement>("[data-key]").forEach(button => {
       const code = button.dataset.key!;
+      button.addEventListener("selectstart", event => event.preventDefault());
       button.addEventListener("pointerdown", event => {
         if (button.disabled) return;
         event.preventDefault();
