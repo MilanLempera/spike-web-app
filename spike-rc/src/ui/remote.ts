@@ -442,8 +442,12 @@ export function liveRemoteCommands(
 
   const appendExtras = (commands: HubCommand[]) => {
     let next = commands;
-    if (wantExtra) next = [...next, ...probeCommands(config.extraPort, extraPower, config.invertExtra)];
-    if (wantExtra2) next = [...next, ...probeCommands(config.extra2Port, extra2Power, config.invertExtra2)];
+    if (wantExtra && hasExtraMotor(config.extraPort)) {
+      next = [...next, ...probeCommands(config.extraPort, extraPower, config.invertExtra)];
+    }
+    if (wantExtra2 && hasExtraMotor(config.extra2Port)) {
+      next = [...next, ...probeCommands(config.extra2Port, extra2Power, config.invertExtra2)];
+    }
     return next;
   };
 
