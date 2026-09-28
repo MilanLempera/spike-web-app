@@ -3,8 +3,8 @@ import type { HubTelemetry } from "spike-link";
 import {
   activeDriveAxis, activeSpeedKey, carSensors, clamp, colorCss, colorLabel, commandSignature, defaultRemoteConfig, distanceVisualRatio,
   drivePowers, formatDistance, formatRgb, hasExtraMotor, intentFromKeys, invertPower, isDirectionKeyEnabled,
-  isRemoteControlEnabled, isRemoteKey, isMainDriveLocked, mainDriveLockMessage, motorPorts, parseRemoteConfig, planRemoteCommands, probeCommands, probePower, readySetupSummary,
-  remoteSensors, resolveStoredRemoteConfig, rgb8, scaledSpeed, shouldShowSetupModal, speedControlLabel, wantsSetupOnConnect, wasdLabelForArrow, wizardAssignSteps, wizardExtraIndex, wizardTabs, wizardView,
+  isRemoteControlEnabled, isRemoteKey, isMainDriveLocked, liveRemoteCommands, mainDriveLockMessage, motorPorts, parseRemoteConfig, planRemoteCommands, probeCommands, probePower, readySetupSummary,
+  remoteSensors, resolveStoredRemoteConfig, rgb8, scaledSpeed, shouldShowSetupModal, speedControlLabel, tankTurnSign, wantsSetupOnConnect, wasdLabelForArrow, wizardAssignSteps, wizardExtra2Index, wizardExtraIndex, wizardTabs, wizardView,
 } from "./remote";
 
 describe("remote keyboard intent", () => {
@@ -16,9 +16,11 @@ describe("remote keyboard intent", () => {
     expect(intentFromKeys(["KeyS", "KeyW"])).toMatchObject({ forward: 0 });
   });
 
-  it("maps Q/E extras and Space as a full stop", () => {
-    expect(intentFromKeys(["KeyQ"])).toMatchObject({ extra: -1, stop: false });
+  it("maps Q/E and R/F extras and Space as a full stop", () => {
+    expect(intentFromKeys(["KeyQ"])).toMatchObject({ extra: -1, extra2: 0, stop: false });
     expect(intentFromKeys(["KeyE"])).toMatchObject({ extra: 1 });
+    expect(intentFromKeys(["KeyR"])).toMatchObject({ extra2: -1, extra: 0 });
+    expect(intentFromKeys(["KeyF"])).toMatchObject({ extra2: 1 });
     expect(intentFromKeys(["Space", "KeyW"])).toMatchObject({ stop: true, forward: 1 });
   });
 
@@ -76,30 +78,35 @@ describe("remote setup wizard", () => {
       { step: 0, label: "Režim" },
       { step: 1, label: "Pohon" },
       { step: 2, label: "Zatáčení" },
-      { step: 3, label: "Extra" },
+      { step: 3, label: "Q·E" },
+      { step: 4, label: "R·F" },
     ]);
-    expect(wizardTabs("tank", "en").map(tab => tab.label)).toEqual(["Mode", "Left", "Right", "Extra"]);
-    expect(wizardTabs("straight", "cs").map(tab => tab.step)).toEqual([0, 1, 2]);
+    expect(wizardTabs("tank", "en").map(tab => tab.label)).toEqual(["Mode", "Left", "Right", "Q·E", "R·F"]);
+    expect(wizardTabs("straight", "cs").map(tab => tab.step)).toEqual([0, 1, 2, 3]);
   });
 
-  it("walks mode → assign → extra → ready for each layout", () => {
+  it("walks mode → assign → extras → ready for each layout", () => {
     expect(wizardExtraIndex("steer")).toBe(3);
+    expect(wizardExtra2Index("steer")).toBe(4);
     expect(wizardExtraIndex("straight")).toBe(2);
-    expect(wizardView(0, "steer")).toMatchObject({ kind: "mode", index: 0, total: 5 });
+    expect(wizardView(0, "steer")).toMatchObject({ kind: "mode", index: 0, total: 6 });
     expect(wizardView(1, "steer")).toMatchObject({ kind: "assign", assign: { role: "drive" } });
     expect(wizardView(2, "steer")).toMatchObject({ kind: "assign", assign: { role: "steer" } });
-    expect(wizardView(3, "steer")).toMatchObject({ kind: "extra", index: 3, total: 5 });
-    expect(wizardView(4, "steer")).toMatchObject({ kind: "ready", index: 4, total: 5 });
-    expect(wizardView(2, "straight")).toMatchObject({ kind: "extra", total: 4 });
-    expect(wizardView(3, "straight")).toMatchObject({ kind: "ready", total: 4 });
-    expect(wizardView(0, "tank", true)).toMatchObject({ kind: "ready", total: 5 });
+    expect(wizardView(3, "steer")).toMatchObject({ kind: "extra", index: 3, total: 6, slot: 1 });
+    expect(wizardView(4, "steer")).toMatchObject({ kind: "extra", index: 4, total: 6, slot: 2 });
+    expect(wizardView(5, "steer")).toMatchObject({ kind: "ready", index: 5, total: 6 });
+    expect(wizardView(2, "straight")).toMatchObject({ kind: "extra", total: 5, slot: 1 });
+    expect(wizardView(3, "straight")).toMatchObject({ kind: "extra", total: 5, slot: 2 });
+    expect(wizardView(4, "straight")).toMatchObject({ kind: "ready", total: 5 });
+    expect(wizardView(0, "tank", true)).toMatchObject({ kind: "ready", total: 6 });
   });
 
   it("summarizes assigned ports on the ready header", () => {
-    const steer = { ...defaultRemoteConfig(), extraPort: "E" as const };
-    expect(readySetupSummary(steer, "cs")).toBe("Pohon A · Zatáčení C · Extra E");
-    expect(readySetupSummary({ ...steer, extraPort: "" }, "en")).toBe("Drive A · Steer C");
-    expect(readySetupSummary({ ...defaultRemoteConfig(), layout: "tank" }, "cs")).toBe("Levý A · Pravý B");
+    const steer = { ...defaultRemoteConfig(), extraPort: "E" as const, extra2Port: "F" as const };
+    expect(readySetupSummary(steer, "cs")).toBe("Pohon A · Zatáčení C · Extra1 E · Extra2 F");
+    expect(readySetupSummary({ ...steer, extraPort: "", extra2Port: "" }, "en")).toBe("Drive A · Steer C");
+    expect(readySetupSummary({ ...defaultRemoteConfig(), layout: "tank" }, "cs")).toBe("Levý A · Pravý B · vzadu");
+    expect(readySetupSummary({ ...defaultRemoteConfig(), layout: "tank", tankAxle: "front" }, "en")).toBe("Left A · Right B · front");
     expect(readySetupSummary({ ...defaultRemoteConfig(), layout: "straight" }, "en")).toBe("Drive A");
   });
 
@@ -108,9 +115,9 @@ describe("remote setup wizard", () => {
     expect(activeDriveAxis(wizardView(1, "steer"), "steer")).toBe("forward");
     expect(activeDriveAxis(wizardView(2, "steer"), "steer")).toBe("turn");
     expect(activeDriveAxis(wizardView(3, "steer"), "steer")).toBe("none");
-    expect(activeDriveAxis(wizardView(4, "steer", true), "steer")).toBe("all");
-    expect(activeDriveAxis(wizardView(4, "tank", true), "tank")).toBe("all");
-    expect(activeDriveAxis(wizardView(3, "straight", true), "straight")).toBe("forward");
+    expect(activeDriveAxis(wizardView(5, "steer", true), "steer")).toBe("all");
+    expect(activeDriveAxis(wizardView(5, "tank", true), "tank")).toBe("all");
+    expect(activeDriveAxis(wizardView(4, "straight", true), "straight")).toBe("forward");
   });
 
   it("disables unused direction keys for the active axis", () => {
@@ -134,13 +141,18 @@ describe("remote setup wizard", () => {
     expect(mainDriveLockMessage("en")).toBe("Set up the car first.");
   });
 
-  it("keeps extra Q/E off until a motor port is chosen", () => {
+  it("keeps extra Q/E and R/F off until a motor port is chosen", () => {
     expect(hasExtraMotor("")).toBe(false);
     expect(hasExtraMotor("E")).toBe(true);
     expect(isRemoteControlEnabled("KeyQ", "all", "")).toBe(false);
     expect(isRemoteControlEnabled("KeyE", "none", "C")).toBe(true);
+    expect(isRemoteControlEnabled("KeyR", "all", "E", "")).toBe(false);
+    expect(isRemoteControlEnabled("KeyF", "all", "E", "D")).toBe(true);
     expect(isRemoteControlEnabled("ArrowUp", "forward", "")).toBe(true);
     expect(isRemoteControlEnabled("ArrowLeft", "forward", "E")).toBe(false);
+    const extra1 = wizardView(3, "steer");
+    expect(isRemoteControlEnabled("KeyR", "none", "E", "F", extra1)).toBe(false);
+    expect(isRemoteControlEnabled("KeyQ", "none", "E", "F", extra1)).toBe(true);
   });
 
   it("points the speed slider at the motor under test, then back to the throttle", () => {
@@ -149,18 +161,21 @@ describe("remote setup wizard", () => {
     expect(activeSpeedKey(wizardView(1, "tank"))).toBe("speedLeft");
     expect(activeSpeedKey(wizardView(2, "tank"))).toBe("speedRight");
     expect(activeSpeedKey(wizardView(3, "steer"))).toBe("speedExtra");
+    expect(activeSpeedKey(wizardView(4, "steer"))).toBe("speedExtra2");
     expect(activeSpeedKey(wizardView(0, "steer"))).toBe("speed");
-    expect(activeSpeedKey(wizardView(4, "steer", true))).toBe("speed");
+    expect(activeSpeedKey(wizardView(5, "steer", true))).toBe("speed");
     expect(speedControlLabel("speedSteer", "cs")).toBe("Zatáčení");
     expect(speedControlLabel("speed", "en")).toBe("Throttle");
     expect(speedControlLabel("speedLeft", "cs")).toBe("Levý");
+    expect(speedControlLabel("speedExtra2", "en")).toBe("Extra 2");
   });
 
   it("probes a single motor and respects invert / stop", () => {
-    expect(probePower("forward", { forward: 1, turn: 0, extra: 0, stop: false }, 50)).toBe(50);
-    expect(probePower("turn", { forward: 0, turn: -1, extra: 0, stop: false }, 40)).toBe(-40);
-    expect(probePower("extra", { forward: 0, turn: 0, extra: 1, stop: false }, 50)).toBe(50);
-    expect(probePower("forward", { forward: 1, turn: 0, extra: 0, stop: true }, 50)).toBe(0);
+    expect(probePower("forward", { forward: 1, turn: 0, extra: 0, extra2: 0, stop: false }, 50)).toBe(50);
+    expect(probePower("turn", { forward: 0, turn: -1, extra: 0, extra2: 0, stop: false }, 40)).toBe(-40);
+    expect(probePower("extra", { forward: 0, turn: 0, extra: 1, extra2: 0, stop: false }, 50)).toBe(50);
+    expect(probePower("extra2", { forward: 0, turn: 0, extra: 0, extra2: -1, stop: false }, 40)).toBe(-40);
+    expect(probePower("forward", { forward: 1, turn: 0, extra: 0, extra2: 0, stop: true }, 50)).toBe(0);
     expect(probeCommands("A", 50, false)).toEqual([{ cmd: "motor.run", port: "A", speed: 50 }]);
     expect(probeCommands("C", 50, true)).toEqual([{ cmd: "motor.run", port: "C", speed: -50 }]);
     expect(probeCommands("A", 0, false)).toEqual([{ cmd: "motor.stop", port: "A" }]);
@@ -174,22 +189,31 @@ describe("remote drive planning", () => {
   const straight = { ...defaultRemoteConfig(), layout: "straight" as const, api: "move" as const };
 
   it("mixes tank speeds and zeros them on Space", () => {
-    expect(drivePowers(tank, { forward: 1, turn: 1, extra: 0, stop: false })).toEqual({ left: 0, right: 100, extra: 0 });
-    expect(drivePowers(tank, { forward: 1, turn: 0, extra: 1, stop: true })).toEqual({ left: 0, right: 0, drive: 0, steer: 0, extra: 0 });
+    expect(drivePowers(tank, { forward: 1, turn: 1, extra: 0, extra2: 0, stop: false })).toEqual({ left: 100, right: 0, extra: 0, extra2: 0 });
+    expect(drivePowers(tank, { forward: 0, turn: -1, extra: 0, extra2: 0, stop: false })).toEqual({ left: -50, right: 50, extra: 0, extra2: 0 });
+    expect(drivePowers(tank, { forward: 1, turn: 0, extra: 1, extra2: 0, stop: true })).toEqual({ left: 0, right: 0, drive: 0, steer: 0, extra: 0, extra2: 0 });
+  });
+
+  it("flips tank turn mix when drive wheels are at the front", () => {
+    expect(tankTurnSign("rear")).toBe(-1);
+    expect(tankTurnSign("front")).toBe(1);
+    const front = { ...tank, tankAxle: "front" as const };
+    expect(drivePowers(front, { forward: 0, turn: 1, extra: 0, extra2: 0, stop: false })).toEqual({ left: -50, right: 50, extra: 0, extra2: 0 });
+    expect(drivePowers(tank, { forward: 0, turn: 1, extra: 0, extra2: 0, stop: false })).toEqual({ left: 50, right: -50, extra: 0, extra2: 0 });
   });
 
   it("scales each motor cap by the throttle", () => {
     expect(scaledSpeed(40, 50)).toBe(20);
     expect(scaledSpeed(80, 100)).toBe(80);
-    const tuned = { ...steer, speed: 50, speedDrive: 80, speedSteer: 40, speedExtra: 20 };
-    expect(drivePowers(tuned, { forward: 1, turn: -1, extra: 1, stop: false })).toEqual({ drive: 40, steer: -20, extra: 10 });
+    const tuned = { ...steer, speed: 50, speedDrive: 80, speedSteer: 40, speedExtra: 20, speedExtra2: 30 };
+    expect(drivePowers(tuned, { forward: 1, turn: -1, extra: 1, extra2: 1, stop: false })).toEqual({ drive: 40, steer: -20, extra: 10, extra2: 15 });
     const tankTuned = { ...tank, speed: 100, speedLeft: 40, speedRight: 80 };
-    expect(drivePowers(tankTuned, { forward: 1, turn: 0, extra: 0, stop: false })).toEqual({ left: 40, right: 80, extra: 0 });
-    expect(drivePowers(tankTuned, { forward: 0, turn: 1, extra: 0, stop: false })).toEqual({ left: -40, right: 80, extra: 0 });
+    expect(drivePowers(tankTuned, { forward: 1, turn: 0, extra: 0, extra2: 0, stop: false })).toEqual({ left: 40, right: 80, extra: 0, extra2: 0 });
+    expect(drivePowers(tankTuned, { forward: 0, turn: 1, extra: 0, extra2: 0, stop: false })).toEqual({ left: 40, right: -80, extra: 0, extra2: 0 });
   });
 
   it("sends move.tank or individual motor.run commands", () => {
-    const powers = drivePowers(tank, { forward: 1, turn: 0, extra: 0, stop: false });
+    const powers = drivePowers(tank, { forward: 1, turn: 0, extra: 0, extra2: 0, stop: false });
     expect(planRemoteCommands(tank, powers, false)).toEqual([
       { cmd: "move.tank", leftPort: "A", rightPort: "B", leftSpeed: 50, rightSpeed: 50 },
     ]);
@@ -200,8 +224,8 @@ describe("remote drive planning", () => {
   });
 
   it("drives one motor and steers the other in steer/motor mode", () => {
-    const powers = drivePowers(steer, { forward: 1, turn: -1, extra: 0, stop: false });
-    expect(powers).toEqual({ drive: 50, steer: -50, extra: 0 });
+    const powers = drivePowers(steer, { forward: 1, turn: -1, extra: 0, extra2: 0, stop: false });
+    expect(powers).toEqual({ drive: 50, steer: -50, extra: 0, extra2: 0 });
     expect(planRemoteCommands(steer, powers, false)).toEqual([
       { cmd: "motor.run", port: "A", speed: 50 },
       { cmd: "motor.run", port: "C", speed: -50 },
@@ -210,7 +234,7 @@ describe("remote drive planning", () => {
 
   it("turns move steering into a full lock from the steering cap", () => {
     const moveSteer = { ...defaultRemoteConfig(), layout: "steer" as const, api: "move" as const, speed: 50, speedSteer: 40, speedDrive: 80 };
-    const powers = drivePowers(moveSteer, { forward: 1, turn: -1, extra: 0, stop: false });
+    const powers = drivePowers(moveSteer, { forward: 1, turn: -1, extra: 0, extra2: 0, stop: false });
     expect(powers.steer).toBe(-20);
     expect(planRemoteCommands(moveSteer, powers, false)).toEqual([
       { cmd: "move.start", leftPort: "A", rightPort: "B", speed: 40, steering: -100 },
@@ -218,8 +242,8 @@ describe("remote drive planning", () => {
   });
 
   it("uses move.start without steering for the straight layout", () => {
-    const powers = drivePowers(straight, { forward: -1, turn: 1, extra: 0, stop: false });
-    expect(powers).toEqual({ drive: -50, extra: 0 });
+    const powers = drivePowers(straight, { forward: -1, turn: 1, extra: 0, extra2: 0, stop: false });
+    expect(powers).toEqual({ drive: -50, extra: 0, extra2: 0 });
     expect(planRemoteCommands(straight, powers, false)).toEqual([
       { cmd: "move.start", leftPort: "A", rightPort: "B", speed: -50, steering: 0 },
     ]);
@@ -236,6 +260,39 @@ describe("remote drive planning", () => {
     expect(planRemoteCommands({ ...steer, extraPort: "F" }, { drive: 50, extra: 20 }, true)).toEqual([
       { cmd: "motor.run", port: "A", speed: 50 },
       { cmd: "motor.run", port: "F", speed: 20 },
+    ]);
+    expect(planRemoteCommands({ ...steer, extraPort: "E", extra2Port: "F" }, { drive: 50, extra: 20, extra2: -10 }, true)).toEqual([
+      { cmd: "motor.run", port: "A", speed: 50 },
+      { cmd: "motor.run", port: "E", speed: 20 },
+      { cmd: "motor.run", port: "F", speed: -10 },
+    ]);
+  });
+
+  it("keeps Q/E and R/F live after setup without mixing idle drive stops", () => {
+    const ready = wizardView(5, "tank", true);
+    const configured = {
+      ...motorTank,
+      extraPort: "E" as const,
+      extra2Port: "F" as const,
+      speedExtra: 40,
+      speedExtra2: 30,
+      speed: 100,
+      setupDone: true,
+    };
+    expect(liveRemoteCommands(ready, configured, { forward: 0, turn: 0, extra: -1, extra2: 0, stop: false })).toEqual([
+      { cmd: "motor.run", port: "E", speed: -40 },
+    ]);
+    expect(liveRemoteCommands(ready, configured, { forward: 0, turn: 0, extra: 0, extra2: 1, stop: false })).toEqual([
+      { cmd: "motor.run", port: "F", speed: 30 },
+    ]);
+    expect(liveRemoteCommands(ready, configured, { forward: 0, turn: 0, extra: 0, extra2: 0, stop: false }, { extra2: true })).toEqual([
+      { cmd: "motor.stop", port: "F" },
+    ]);
+    expect(liveRemoteCommands(ready, configured, { forward: 1, turn: 0, extra: 1, extra2: -1, stop: false })).toEqual([
+      { cmd: "motor.run", port: "A", speed: 50 },
+      { cmd: "motor.run", port: "B", speed: 50 },
+      { cmd: "motor.run", port: "E", speed: 40 },
+      { cmd: "motor.run", port: "F", speed: -30 },
     ]);
   });
 

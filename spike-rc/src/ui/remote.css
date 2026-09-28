@@ -61,7 +61,7 @@
 #remote-drive-controls.is-tryout .remote-try-note,#remote-drive-controls.is-tryout .remote-arrow-hint,#remote-drive-controls.is-tryout #remote-speed-field{display:none}
 #remote-drive-controls.is-locked .remote-arrow-hint{color:#ff8eab;opacity:1}
 #remote-drive-controls.is-locked .remote-speed{opacity:.45}
-.setup-tryout .remote-drive-pad{max-width:220px}
+.setup-tryout .remote-drive-pad{max-width:280px}
 .setup-tryout .remote-key{min-height:48px;box-shadow:0 4px 0 #1a0810,0 0 0 1px rgba(255,61,172,.08) inset}
 .setup-tryout .remote-key strong{font-size:14px}
 .setup-tryout .remote-key.space{min-height:44px;margin-top:6px}
@@ -73,10 +73,12 @@
 .wizard-copy,.wizard-hint{text-transform:none;font:600 12px/1.45 Inter,sans-serif;letter-spacing:0}
 .wizard-ask,.wizard-ready{margin:12px 0 10px;color:#e8fbff;font:800 14px Orbitron,sans-serif}
 .wizard-modes{display:grid;gap:8px}
+.wizard-modes.wizard-axle{grid-template-columns:1fr 1fr;margin-top:4px}
 .wizard-modes button{min-height:58px;padding:10px 12px;border:1px solid rgba(60,246,255,.16);background:#0b1522;color:#9bb3c0;text-align:left}
 .wizard-modes button b{display:block;color:#3cf6ff;font:800 11px Orbitron,sans-serif;letter-spacing:.12em;text-transform:uppercase}
 .wizard-modes button span{display:block;margin-top:6px;font:600 12px/1.35 Inter,sans-serif;color:#8ea0ae}
 .wizard-modes button.active,.wizard-modes button:hover{border-color:#3cf6ff;background:linear-gradient(180deg,rgba(60,246,255,.16),#102030)}
+.wizard-axle button{min-height:72px}
 .port-chips{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 12px}
 .port-chip{width:42px;height:42px;border:1px solid rgba(60,246,255,.2);background:#0b1522;color:#d7f6ff;font:800 13px Orbitron,sans-serif}
 .port-chip.has-motor{box-shadow:0 0 0 1px rgba(60,246,255,.28) inset}
@@ -86,15 +88,17 @@
 .wizard-actions .primary{background:#3cf6ff;color:#041018;border-color:#3cf6ff}
 .wizard-actions button:disabled{opacity:.32;cursor:not-allowed}
 .remote-drive #remote-drive-controls{display:flex;flex-direction:column;align-items:center;justify-content:center}
-.remote-drive-pad{width:100%;max-width:280px;margin:0}
-.remote-drive #remote-speed-field{width:100%;max-width:280px}
-.remote-arrows{display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-areas:"extraQ up extraE" "left down right";gap:8px}
+.remote-drive-pad{width:100%;max-width:320px;margin:0}
+.remote-drive #remote-speed-field{width:100%;max-width:320px}
+.remote-arrows{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;grid-template-areas:"extraQ up extraE extraR" "left down right extraF";gap:8px}
 .remote-arrows [data-key="KeyQ"]{grid-area:extraQ}
 .remote-arrows [data-key="ArrowUp"]{grid-area:up}
 .remote-arrows [data-key="KeyE"]{grid-area:extraE}
+.remote-arrows [data-key="KeyR"]{grid-area:extraR}
 .remote-arrows [data-key="ArrowLeft"]{grid-area:left}
 .remote-arrows [data-key="ArrowDown"]{grid-area:down}
 .remote-arrows [data-key="ArrowRight"]{grid-area:right}
+.remote-arrows [data-key="KeyF"]{grid-area:extraF}
 .remote-arrow-hint{margin:8px 0 12px;text-align:center;text-transform:none;font:600 12px Inter,sans-serif;letter-spacing:0}
 .remote-key{min-height:62px;border:1px solid rgba(60,246,255,.22);border-radius:4px;background:linear-gradient(180deg,#132132,#0c1622);color:#c8eef8;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;box-shadow:0 6px 0 #071018,0 0 0 1px rgba(60,246,255,.08) inset}
 .remote-key strong{font:800 16px Orbitron,sans-serif}

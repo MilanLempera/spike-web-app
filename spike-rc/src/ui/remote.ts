@@ -4,39 +4,45 @@ export type Locale = "en" | "cs";
 export type ExtraPort = Port | "";
 export type DriveLayout = "tank" | "steer" | "straight";
 export type DriveApi = "move" | "motor";
+export type TankAxle = "rear" | "front";
 export type HubCommand = Record<string, unknown>;
-export type MotorRole = "left" | "right" | "drive" | "steer" | "extra";
+export type MotorRole = "left" | "right" | "drive" | "steer" | "extra" | "extra2";
 export type MotorPowers = Partial<Record<MotorRole, number>>;
 
 export type RemoteIntent = {
   forward: number;
   turn: number;
   extra: number;
+  extra2: number;
   stop: boolean;
 };
 
-export type MotorSpeedKey = "speedLeft" | "speedRight" | "speedDrive" | "speedSteer" | "speedExtra";
+export type MotorSpeedKey = "speedLeft" | "speedRight" | "speedDrive" | "speedSteer" | "speedExtra" | "speedExtra2";
 export type SpeedKey = MotorSpeedKey | "speed";
 
 export type RemoteConfig = {
   layout: DriveLayout;
   api: DriveApi;
+  tankAxle: TankAxle;
   speed: number;
   speedLeft: number;
   speedRight: number;
   speedDrive: number;
   speedSteer: number;
   speedExtra: number;
+  speedExtra2: number;
   leftPort: Port;
   rightPort: Port;
   drivePort: Port;
   steerPort: Port;
   extraPort: ExtraPort;
+  extra2Port: ExtraPort;
   invertLeft: boolean;
   invertRight: boolean;
   invertDrive: boolean;
   invertSteer: boolean;
   invertExtra: boolean;
+  invertExtra2: boolean;
   setupDone: boolean;
   wizardStep: number;
 };
@@ -52,7 +58,7 @@ export type WizardAssign = {
 export type WizardView =
   | { kind: "mode"; index: number; total: number }
   | { kind: "assign"; index: number; total: number; assign: WizardAssign }
-  | { kind: "extra"; index: number; total: number }
+  | { kind: "extra"; index: number; total: number; slot: 1 | 2 }
   | { kind: "ready"; index: number; total: number };
 
 export type DriveAxis = "none" | "forward" | "turn" | "all";
@@ -68,7 +74,7 @@ export type RemoteSensor = {
   pressed: boolean;
 };
 
-const REMOTE_KEYS = ["KeyW", "KeyA", "KeyS", "KeyD", "KeyQ", "KeyE", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"] as const;
+const REMOTE_KEYS = ["KeyW", "KeyA", "KeyS", "KeyD", "KeyQ", "KeyE", "KeyR", "KeyF", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"] as const;
 const COLOR_HEX: Record<string, string> = {
   Black: "#1b1e24", Magenta: "#e23bb3", Purple: "#8a52d8", Blue: "#2f86ee", Azure: "#2ab4e8",
   Turquoise: "#22c4b8", Green: "#2db86a", Yellow: "#e6c31c", Orange: "#f08b2a", Red: "#e94b58",
@@ -96,14 +102,14 @@ export function clamp(value: number, min = -100, max = 100): number {
   return Math.max(min, Math.min(max, value));
 }
 
-const MOTOR_SPEED_KEYS: MotorSpeedKey[] = ["speedLeft", "speedRight", "speedDrive", "speedSteer", "speedExtra"];
+const MOTOR_SPEED_KEYS: MotorSpeedKey[] = ["speedLeft", "speedRight", "speedDrive", "speedSteer", "speedExtra", "speedExtra2"];
 
 export function defaultRemoteConfig(): RemoteConfig {
   return {
-    layout: "steer", api: "motor", speed: 100,
-    speedLeft: 50, speedRight: 50, speedDrive: 50, speedSteer: 50, speedExtra: 50,
-    leftPort: "A", rightPort: "B", drivePort: "A", steerPort: "C", extraPort: "",
-    invertLeft: false, invertRight: false, invertDrive: false, invertSteer: false, invertExtra: false,
+    layout: "steer", api: "motor", tankAxle: "rear", speed: 100,
+    speedLeft: 50, speedRight: 50, speedDrive: 50, speedSteer: 50, speedExtra: 50, speedExtra2: 50,
+    leftPort: "A", rightPort: "B", drivePort: "A", steerPort: "C", extraPort: "", extra2Port: "",
+    invertLeft: false, invertRight: false, invertDrive: false, invertSteer: false, invertExtra: false, invertExtra2: false,
     setupDone: false, wizardStep: 0,
   };
 }
@@ -123,22 +129,26 @@ export function parseRemoteConfig(raw: unknown): RemoteConfig {
   return {
     layout: value.layout === "tank" || value.layout === "straight" ? value.layout : "steer",
     api: value.api === "move" ? "move" : "motor",
+    tankAxle: value.tankAxle === "front" ? "front" : "rear",
     speed: hasRoleSpeeds ? (storedSpeed(value.speed) ?? fallback.speed) : 100,
     speedLeft: cap(value.speedLeft),
     speedRight: cap(value.speedRight),
     speedDrive: cap(value.speedDrive),
     speedSteer: cap(value.speedSteer),
     speedExtra: cap(value.speedExtra),
+    speedExtra2: cap(value.speedExtra2),
     leftPort: port(value.leftPort, fallback.leftPort),
     rightPort: port(value.rightPort, fallback.rightPort),
     drivePort: port(value.drivePort, fallback.drivePort),
     steerPort: port(value.steerPort, fallback.steerPort),
     extraPort: PORTS.includes(value.extraPort as Port) ? value.extraPort as Port : "",
+    extra2Port: PORTS.includes(value.extra2Port as Port) ? value.extra2Port as Port : "",
     invertLeft: value.invertLeft === true,
     invertRight: value.invertRight === true,
     invertDrive: value.invertDrive === true,
     invertSteer: value.invertSteer === true,
     invertExtra: value.invertExtra === true,
+    invertExtra2: value.invertExtra2 === true,
     setupDone: value.setupDone === true,
     wizardStep: Math.max(0, Math.round(Number(value.wizardStep) || 0)),
   };
@@ -173,6 +183,10 @@ export function wizardExtraIndex(layout: DriveLayout): number {
   return wizardAssignSteps(layout).length + 1;
 }
 
+export function wizardExtra2Index(layout: DriveLayout): number {
+  return wizardExtraIndex(layout) + 1;
+}
+
 export type WizardTab = { step: number; label: string };
 
 export function wizardTabs(layout: DriveLayout, locale: Locale): WizardTab[] {
@@ -187,7 +201,8 @@ export function wizardTabs(layout: DriveLayout, locale: Locale): WizardTab[] {
   return [
     { step: 0, label: cs ? "Režim" : "Mode" },
     ...assigns.map((assign, index) => ({ step: index + 1, label: roleLabel(assign.role) })),
-    { step: assigns.length + 1, label: "Extra" },
+    { step: assigns.length + 1, label: "Q·E" },
+    { step: assigns.length + 2, label: "R·F" },
   ];
 }
 
@@ -203,12 +218,14 @@ export function shouldShowSetupModal(connected: boolean, setupDone: boolean, reo
 export function wizardView(step: number, layout: DriveLayout, setupDone = false): WizardView {
   const assigns = wizardAssignSteps(layout);
   const extraIndex = wizardExtraIndex(layout);
-  const total = extraIndex + 2;
+  const extra2Index = wizardExtra2Index(layout);
+  const total = extra2Index + 2;
   if (setupDone) return { kind: "ready", index: total - 1, total };
   const clamped = Math.max(0, Math.min(Math.round(step), total - 1));
   if (clamped === 0) return { kind: "mode", index: 0, total };
   if (clamped <= assigns.length) return { kind: "assign", index: clamped, total, assign: assigns[clamped - 1] };
-  if (clamped === extraIndex) return { kind: "extra", index: extraIndex, total };
+  if (clamped === extraIndex) return { kind: "extra", index: extraIndex, total, slot: 1 };
+  if (clamped === extra2Index) return { kind: "extra", index: extra2Index, total, slot: 2 };
   return { kind: "ready", index: clamped, total };
 }
 
@@ -232,9 +249,16 @@ export function hasExtraMotor(port: string): port is Port {
 }
 
 export function readySetupSummary(config: RemoteConfig, locale: Locale): string {
-  const extra = hasExtraMotor(config.extraPort) ? ` · Extra ${config.extraPort}` : "";
+  const extras = [
+    hasExtraMotor(config.extraPort) ? `Extra1 ${config.extraPort}` : "",
+    hasExtraMotor(config.extra2Port) ? `Extra2 ${config.extra2Port}` : "",
+  ].filter(Boolean);
+  const extra = extras.length ? ` · ${extras.join(" · ")}` : "";
   if (config.layout === "tank") {
-    return `${locale === "cs" ? "Levý" : "Left"} ${config.leftPort} · ${locale === "cs" ? "Pravý" : "Right"} ${config.rightPort}${extra}`;
+    const axle = config.tankAxle === "front"
+      ? (locale === "cs" ? "vpředu" : "front")
+      : (locale === "cs" ? "vzadu" : "rear");
+    return `${locale === "cs" ? "Levý" : "Left"} ${config.leftPort} · ${locale === "cs" ? "Pravý" : "Right"} ${config.rightPort} · ${axle}${extra}`;
   }
   if (config.layout === "steer") {
     return `${locale === "cs" ? "Pohon" : "Drive"} ${config.drivePort} · ${locale === "cs" ? "Zatáčení" : "Steer"} ${config.steerPort}${extra}`;
@@ -250,8 +274,21 @@ export function mainDriveLockMessage(locale: Locale): string {
   return locale === "cs" ? "Nejprve nastavte autíčko." : "Set up the car first.";
 }
 
-export function isRemoteControlEnabled(code: string, axis: DriveAxis, extraPort: ExtraPort): boolean {
-  if (code === "KeyQ" || code === "KeyE") return hasExtraMotor(extraPort);
+export function isRemoteControlEnabled(
+  code: string,
+  axis: DriveAxis,
+  extraPort: ExtraPort,
+  extra2Port: ExtraPort = "",
+  view?: WizardView,
+): boolean {
+  if (code === "KeyQ" || code === "KeyE") {
+    if (view?.kind === "extra" && view.slot !== 1) return false;
+    return hasExtraMotor(extraPort);
+  }
+  if (code === "KeyR" || code === "KeyF") {
+    if (view?.kind === "extra" && view.slot !== 2) return false;
+    return hasExtraMotor(extra2Port);
+  }
   return isDirectionKeyEnabled(code, axis);
 }
 
@@ -261,7 +298,7 @@ export function scaledSpeed(cap: number, throttle: number): number {
 
 export function activeSpeedKey(view: WizardView): SpeedKey {
   if (view.kind === "assign") return view.assign.speedKey;
-  if (view.kind === "extra") return "speedExtra";
+  if (view.kind === "extra") return view.slot === 2 ? "speedExtra2" : "speedExtra";
   return "speed";
 }
 
@@ -271,13 +308,17 @@ export function speedControlLabel(key: SpeedKey, locale: Locale): string {
   if (key === "speedRight") return cs ? "Pravý" : "Right";
   if (key === "speedDrive") return cs ? "Pohon" : "Drive";
   if (key === "speedSteer") return cs ? "Zatáčení" : "Steering";
-  if (key === "speedExtra") return "Extra";
+  if (key === "speedExtra") return "Extra 1";
+  if (key === "speedExtra2") return "Extra 2";
   return cs ? "Plyn" : "Throttle";
 }
 
-export function probePower(axis: "forward" | "turn" | "extra", intent: RemoteIntent, speed: number): number {
+export function probePower(axis: "forward" | "turn" | "extra" | "extra2", intent: RemoteIntent, speed: number): number {
   if (intent.stop) return 0;
-  const direction = axis === "forward" ? intent.forward : axis === "turn" ? intent.turn : intent.extra;
+  const direction = axis === "forward" ? intent.forward
+    : axis === "turn" ? intent.turn
+      : axis === "extra2" ? intent.extra2
+        : intent.extra;
   return direction * speed;
 }
 
@@ -291,6 +332,11 @@ export function motorPorts(state: HubTelemetry | undefined): Port[] {
   return PORTS.filter(port => state.ports[port]?.kind === "motor");
 }
 
+export function tankTurnSign(axle: TankAxle): 1 | -1 {
+  // Front axle inverts yaw relative to a rear-drive car.
+  return axle === "front" ? 1 : -1;
+}
+
 export function intentFromKeys(keys: Iterable<string>): RemoteIntent {
   const set = keys instanceof Set ? keys : new Set(keys);
   const axis = (negative: string[], positive: string[]) => (positive.some(code => set.has(code)) ? 1 : 0) - (negative.some(code => set.has(code)) ? 1 : 0);
@@ -298,26 +344,33 @@ export function intentFromKeys(keys: Iterable<string>): RemoteIntent {
     forward: axis(["KeyS", "ArrowDown"], ["KeyW", "ArrowUp"]),
     turn: axis(["KeyA", "ArrowLeft"], ["KeyD", "ArrowRight"]),
     extra: axis(["KeyQ"], ["KeyE"]),
+    extra2: axis(["KeyR"], ["KeyF"]),
     stop: set.has("Space"),
   };
 }
 
 export function drivePowers(config: RemoteConfig, intent: RemoteIntent): MotorPowers {
-  if (intent.stop) return { left: 0, right: 0, drive: 0, steer: 0, extra: 0 };
+  if (intent.stop) return { left: 0, right: 0, drive: 0, steer: 0, extra: 0, extra2: 0 };
   const at = (cap: number) => scaledSpeed(cap, config.speed);
+  const extras = {
+    extra: (intent.extra ?? 0) * at(config.speedExtra),
+    extra2: (intent.extra2 ?? 0) * at(config.speedExtra2),
+  };
   if (config.layout === "tank") {
     const left = at(config.speedLeft);
     const right = at(config.speedRight);
+    const turn = (intent.turn ?? 0) * tankTurnSign(config.tankAxle);
+    // After tankTurnSign: right key with rear axle → left forward, right reverse
     return {
-      left: Math.round(clamp(intent.forward * left - intent.turn * left)),
-      right: Math.round(clamp(intent.forward * right + intent.turn * right)),
-      extra: intent.extra * at(config.speedExtra),
+      left: Math.round(clamp(intent.forward * left - turn * left)),
+      right: Math.round(clamp(intent.forward * right + turn * right)),
+      ...extras,
     };
   }
   if (config.layout === "steer") {
-    return { drive: intent.forward * at(config.speedDrive), steer: intent.turn * at(config.speedSteer), extra: intent.extra * at(config.speedExtra) };
+    return { drive: intent.forward * at(config.speedDrive), steer: intent.turn * at(config.speedSteer), ...extras };
   }
-  return { drive: intent.forward * at(config.speedDrive), extra: intent.extra * at(config.speedExtra) };
+  return { drive: intent.forward * at(config.speedDrive), ...extras };
 }
 
 export function invertPower(value: number, invert: boolean): number {
@@ -365,7 +418,58 @@ export function planRemoteCommands(config: RemoteConfig, powers: MotorPowers, in
   }
 
   if (includeExtra && hasExtraMotor(config.extraPort)) motor(config.extraPort, powers.extra ?? 0, config.invertExtra);
+  if (includeExtra && hasExtraMotor(config.extra2Port)) motor(config.extra2Port, powers.extra2 ?? 0, config.invertExtra2);
   return commands;
+}
+
+/** Commands for the current wizard/ready view, including Q/E and R/F extras after setup. */
+export function liveRemoteCommands(
+  view: WizardView,
+  config: RemoteConfig,
+  intent: RemoteIntent,
+  live: boolean | { extra?: boolean; extra2?: boolean } = false,
+): HubCommand[] {
+  const flags = typeof live === "boolean" ? { extra: live, extra2: live } : live;
+  const testingExtra1 = view.kind === "extra" && view.slot === 1;
+  const testingExtra2 = view.kind === "extra" && view.slot === 2;
+  const testingAssign = view.kind === "assign";
+  const extraSpeed = testingExtra1 || testingAssign ? config.speedExtra : scaledSpeed(config.speedExtra, config.speed);
+  const extra2Speed = testingExtra2 || testingAssign ? config.speedExtra2 : scaledSpeed(config.speedExtra2, config.speed);
+  const extraPower = intent.stop ? 0 : intent.extra * extraSpeed;
+  const extra2Power = intent.stop ? 0 : intent.extra2 * extra2Speed;
+  const wantExtra = hasExtraMotor(config.extraPort) && (extraPower !== 0 || !!flags.extra || intent.stop);
+  const wantExtra2 = hasExtraMotor(config.extra2Port) && (extra2Power !== 0 || !!flags.extra2 || intent.stop);
+
+  const appendExtras = (commands: HubCommand[]) => {
+    let next = commands;
+    if (wantExtra) next = [...next, ...probeCommands(config.extraPort, extraPower, config.invertExtra)];
+    if (wantExtra2) next = [...next, ...probeCommands(config.extra2Port, extra2Power, config.invertExtra2)];
+    return next;
+  };
+
+  if (view.kind === "assign") {
+    return appendExtras(probeCommands(
+      config[view.assign.portKey],
+      probePower(view.assign.axis, intent, config[view.assign.speedKey]),
+      config[view.assign.invertKey],
+    ));
+  }
+
+  if (view.kind === "extra") {
+    if (view.slot === 2) {
+      return hasExtraMotor(config.extra2Port) ? probeCommands(config.extra2Port, extra2Power, config.invertExtra2) : [];
+    }
+    return hasExtraMotor(config.extraPort) ? probeCommands(config.extraPort, extraPower, config.invertExtra) : [];
+  }
+
+  if (view.kind !== "ready") return [];
+
+  // Extras alone: only talk to those motors (same as setup tryout).
+  if ((wantExtra || wantExtra2) && intent.forward === 0 && intent.turn === 0 && !intent.stop) {
+    return appendExtras([]);
+  }
+
+  return planRemoteCommands(config, drivePowers(config, intent), wantExtra || wantExtra2);
 }
 
 export const DISTANCE_RANGE_CM = 200;
@@ -465,6 +569,7 @@ export class RemotePad {
   private keys = new Set<string>();
   private lastSignature = "";
   private extraLive = false;
+  private extra2Live = false;
   private sending = false;
   private queued?: HubCommand[];
   private root?: HTMLElement;
@@ -512,10 +617,12 @@ export class RemotePad {
           <div id="remote-drive-controls" class="${c.setupDone ? "" : "is-locked"}">
             <div class="remote-drive-pad">
               <div class="remote-arrows">
-                <button type="button" class="remote-key fn" data-key="KeyQ" ${c.setupDone ? "" : "disabled"}><strong>Q</strong><em>${l("Extra −","Extra −")}</em></button>
+                <button type="button" class="remote-key fn" data-key="KeyQ" ${c.setupDone ? "" : "disabled"}><strong>Q</strong><em>Extra 1 −</em></button>
                 ${key("ArrowUp", "▲")}
-                <button type="button" class="remote-key fn" data-key="KeyE" ${c.setupDone ? "" : "disabled"}><strong>E</strong><em>${l("Extra +","Extra +")}</em></button>
+                <button type="button" class="remote-key fn" data-key="KeyE" ${c.setupDone ? "" : "disabled"}><strong>E</strong><em>Extra 1 +</em></button>
+                <button type="button" class="remote-key fn" data-key="KeyR" ${c.setupDone ? "" : "disabled"}><strong>R</strong><em>Extra 2 −</em></button>
                 ${key("ArrowLeft", "◀")}${key("ArrowDown", "▼")}${key("ArrowRight", "▶")}
+                <button type="button" class="remote-key fn" data-key="KeyF" ${c.setupDone ? "" : "disabled"}><strong>F</strong><em>Extra 2 +</em></button>
               </div>
               <p class="remote-try-note">${l("Try only. These keys do not change the setup.","Jen vyzkoušení. Těmito klávesami se nic nenastavuje.")}</p>
               <p id="remote-arrow-hint" class="remote-arrow-hint">${c.setupDone ? l("Use the keyboard arrows","Použijte šipky na klávesnici") : mainDriveLockMessage(this.locale())}</p>
@@ -597,11 +704,12 @@ export class RemotePad {
   }
 
   release(): void {
-    const hadKeys = this.keys.size > 0 || this.extraLive;
+    const hadKeys = this.keys.size > 0 || this.extraLive || this.extra2Live;
     this.keys.clear();
     this.renderIntent();
     if (!hadKeys) return;
     this.extraLive = false;
+    this.extra2Live = false;
     this.lastSignature = "";
     this.dispatch(this.commandsForState());
   }
@@ -694,6 +802,7 @@ export class RemotePad {
       host.replaceChildren();
       const actions = this.root?.querySelector("#remote-setup-actions");
       if (actions) actions.innerHTML = "";
+      this.placeDriveControls(false);
       this.markTryout(false);
       this.syncSetupModal();
       return;
@@ -707,19 +816,40 @@ export class RemotePad {
     if (view.kind === "mode") {
       const mode = (id: DriveLayout, title: string, copy: string) =>
         `<button type="button" class="${this.config.layout === id ? "active" : ""}" data-layout="${id}"><b>${title}</b><span>${copy}</span></button>`;
+      const axle = (id: TankAxle, title: string, copy: string) =>
+        `<button type="button" class="${this.config.tankAxle === id ? "active" : ""}" data-tank-axle="${id}"><b>${title}</b><span>${copy}</span></button>`;
       setActions("");
+      const axleBlock = this.config.layout === "tank"
+        ? `<section class="wizard-section">
+            <h4>${l("Drive wheels","Pohonná kola")}</h4>
+            <p class="wizard-copy">${l("Where are the drive motors on the car?","Kde na autíčku jsou hnací motory?")}</p>
+            <div class="wizard-modes wizard-axle">
+              ${axle("rear", l("At the rear","Vzadu"), l("Caster or free wheels at the front.","Vpředu volná kolečka."))}
+              ${axle("front", l("At the front","Vpředu"), l("Caster or free wheels at the rear.","Vzadu volná kolečka."))}
+            </div>
+          </section>`
+        : "";
       body = `<h3>${l("Choose a drive mode","Vyberte režim")}</h3>
         <p class="wizard-copy">${l("Then each motor gets a port, a direction, and a speed.","Pak u každého motoru zvolíme port, směr a rychlost.")}</p>
         <div class="wizard-modes">
           ${mode("steer", l("Drive + steering","Pohon a zatáčení"), l("One motor forward/back, another steers.","Jeden motor dopředu/dozadu, druhý zatáčí."))}
           ${mode("tank", l("Motor on each side","Motor na každé straně"), l("Left and right wheels, tank-style.","Levé a pravé kolo, tank."))}
           ${mode("straight", l("No steering","Bez zatáčení"), l("Forward and back only.","Jen dopředu a dozadu."))}
-        </div>`;
+        </div>
+        ${axleBlock}`;
     } else if (view.kind === "assign" || view.kind === "extra") {
       const extra = view.kind === "extra";
-      const selected = view.kind === "extra" ? this.config.extraPort : this.config[view.assign.portKey];
-      const flipped = view.kind === "extra" ? this.config.invertExtra : this.config[view.assign.invertKey];
-      const title = view.kind === "extra" ? l("Extra motor","Extra motor")
+      const slot = view.kind === "extra" ? view.slot : 1;
+      const selected = view.kind === "extra"
+        ? (slot === 2 ? this.config.extra2Port : this.config.extraPort)
+        : this.config[view.assign.portKey];
+      const flipped = view.kind === "extra"
+        ? (slot === 2 ? this.config.invertExtra2 : this.config.invertExtra)
+        : this.config[view.assign.invertKey];
+      const title = view.kind === "extra"
+        ? (slot === 2
+          ? l("Extra motor 2 (R / F)", "Extra motor 2 (R / F)")
+          : l("Extra motor 1 (Q / E)", "Extra motor 1 (Q / E)"))
         : view.assign.role === "drive" ? l("Forward / reverse motor","Motor dopředu / dozadu")
         : view.assign.role === "steer" ? l("Steering motor","Motor zatáčení")
         : view.assign.role === "left" ? l("Left motor","Levý motor")
@@ -730,8 +860,9 @@ export class RemotePad {
       const direction = !extra || selected
         ? (flipped ? l("Direction is flipped.","Směr je otočený.") : l("Default direction.","Výchozí směr."))
         : l("Pick a port to set the direction.","Vyberte port, abyste nastavili směr.");
+      const lastExtra = extra && slot === 2;
       setActions(`<button type="button" class="quiet" data-wizard="back">${l("Back","Zpět")}</button>
-        <button type="button" class="primary" data-wizard="next">${extra ? l("Done","Hotovo") : l("Next","Dál")}</button>`);
+        <button type="button" class="primary" data-wizard="next">${lastExtra ? l("Done","Hotovo") : l("Next","Dál")}</button>`);
       body = `<h3>${title}</h3>
         <section class="wizard-section">
           <h4>${l("Where is the motor","Kde je motor")}</h4>
@@ -752,17 +883,28 @@ export class RemotePad {
     host.innerHTML = `<div class="wizard-tabs" role="tablist">${tabs}</div>${body}`;
     this.layoutWizardChrome();
     host.querySelectorAll<HTMLButtonElement>("[data-layout]").forEach(button => button.addEventListener("click", () => {
+      const layout = button.dataset.layout as DriveLayout;
       this.patchConfig({
-        layout: button.dataset.layout as DriveLayout,
-        wizardStep: 1,
+        layout,
+        // Stay on mode for tank so the axle choice is visible; other modes continue.
+        wizardStep: layout === "tank" ? 0 : 1,
         setupDone: false,
         api: "motor",
         extraPort: "",
+        extra2Port: "",
         invertLeft: false,
         invertRight: false,
         invertDrive: false,
         invertSteer: false,
         invertExtra: false,
+        invertExtra2: false,
+      }, true);
+    }));
+    host.querySelectorAll<HTMLButtonElement>("[data-tank-axle]").forEach(button => button.addEventListener("click", () => {
+      this.patchConfig({
+        tankAxle: button.dataset.tankAxle as TankAxle,
+        wizardStep: 1,
+        setupDone: false,
       }, true);
     }));
     host.querySelectorAll<HTMLButtonElement>("[data-pick-port]").forEach(button => button.addEventListener("click", () => {
@@ -771,6 +913,8 @@ export class RemotePad {
       if (view.kind === "assign") {
         if (!hasExtraMotor(port)) return;
         this.patchConfig({ [view.assign.portKey]: port }, false);
+      } else if (view.kind === "extra" && view.slot === 2) {
+        this.patchConfig({ extra2Port: hasExtraMotor(port) ? port : "", invertExtra2: hasExtraMotor(port) ? this.config.invertExtra2 : false }, false);
       } else if (view.kind === "extra") {
         this.patchConfig({ extraPort: hasExtraMotor(port) ? port : "", invertExtra: hasExtraMotor(port) ? this.config.invertExtra : false }, false);
       } else return;
@@ -784,11 +928,12 @@ export class RemotePad {
       root?.querySelector<HTMLButtonElement>("[data-wizard=flip]")?.addEventListener("click", () => {
         const view = this.view();
         if (view.kind === "assign") this.patchConfig({ [view.assign.invertKey]: !this.config[view.assign.invertKey] }, true);
+        else if (view.kind === "extra" && view.slot === 2 && hasExtraMotor(this.config.extra2Port)) this.patchConfig({ invertExtra2: !this.config.invertExtra2 }, true);
         else if (view.kind === "extra" && hasExtraMotor(this.config.extraPort)) this.patchConfig({ invertExtra: !this.config.invertExtra }, true);
       });
       root?.querySelector<HTMLButtonElement>("[data-wizard=next]")?.addEventListener("click", () => {
         const next = this.config.wizardStep + 1;
-        this.patchConfig({ wizardStep: next, setupDone: next > wizardExtraIndex(this.config.layout) }, true);
+        this.patchConfig({ wizardStep: next, setupDone: next > wizardExtra2Index(this.config.layout) }, true);
       });
     };
     wireActions(host);
@@ -867,36 +1012,26 @@ export class RemotePad {
 
   private setKey(code: string, down: boolean): void {
     if (isMainDriveLocked(this.config.setupDone, this.isTryoutActive())) return;
-    const axis = activeDriveAxis(this.view(), this.config.layout);
-    if (down && !isRemoteControlEnabled(code, axis, this.config.extraPort)) return;
+    const view = this.view();
+    const axis = activeDriveAxis(view, this.config.layout);
+    if (down && !isRemoteControlEnabled(code, axis, this.config.extraPort, this.config.extra2Port, view)) return;
     if (down) this.keys.add(code); else this.keys.delete(code);
     const intent = intentFromKeys(this.keys);
     this.renderIntent();
     this.dispatch(this.commandsForState());
     this.extraLive = !intent.stop && intent.extra !== 0;
+    this.extra2Live = !intent.stop && intent.extra2 !== 0;
   }
 
   private commandsForState(): HubCommand[] {
-    const intent = intentFromKeys(this.keys);
-    const view = this.view();
-    const testing = view.kind === "assign" || view.kind === "extra";
-    const extraSpeed = testing ? this.config.speedExtra : scaledSpeed(this.config.speedExtra, this.config.speed);
-    const extraPower = intent.stop ? 0 : intent.extra * extraSpeed;
-    const includeExtra = extraPower !== 0 || this.extraLive || intent.stop;
-    let commands: HubCommand[] = [];
-    if (view.kind === "assign") {
-      commands = probeCommands(this.config[view.assign.portKey], probePower(view.assign.axis, intent, this.config[view.assign.speedKey]), this.config[view.assign.invertKey]);
-    } else if (view.kind === "ready") {
-      commands = planRemoteCommands(this.config, drivePowers(this.config, intent), false);
-    }
-    if (includeExtra && hasExtraMotor(this.config.extraPort)) {
-      commands = [...commands, ...probeCommands(this.config.extraPort, extraPower, this.config.invertExtra)];
-    }
-    return commands;
+    return liveRemoteCommands(this.view(), this.config, intentFromKeys(this.keys), {
+      extra: this.extraLive,
+      extra2: this.extra2Live,
+    });
   }
 
   private stopCommands(config: RemoteConfig): HubCommand[] {
-    return planRemoteCommands(config, drivePowers(config, { forward: 0, turn: 0, extra: 0, stop: true }), true);
+    return planRemoteCommands(config, drivePowers(config, { forward: 0, turn: 0, extra: 0, extra2: 0, stop: true }), true);
   }
 
   private renderIntent(): void {
@@ -909,11 +1044,17 @@ export class RemotePad {
         || (intent.forward < 0 && (code === "KeyS" || code === "ArrowDown"))
         || (intent.turn < 0 && (code === "KeyA" || code === "ArrowLeft"))
         || (intent.turn > 0 && (code === "KeyD" || code === "ArrowRight"));
-      button.classList.toggle("hot", hot || (intent.stop && code === "Space") || (intent.extra < 0 && code === "KeyQ") || (intent.extra > 0 && code === "KeyE"));
+      button.classList.toggle("hot", hot
+        || (intent.stop && code === "Space")
+        || (intent.extra < 0 && code === "KeyQ")
+        || (intent.extra > 0 && code === "KeyE")
+        || (intent.extra2 < 0 && code === "KeyR")
+        || (intent.extra2 > 0 && code === "KeyF"));
     });
     const tx = this.root?.querySelector("#remote-tx");
     if (tx) {
-      const moving = view.kind !== "mode" && !intent.stop && (intent.forward !== 0 || intent.turn !== 0 || intent.extra !== 0);
+      const moving = view.kind !== "mode" && !intent.stop
+        && (intent.forward !== 0 || intent.turn !== 0 || intent.extra !== 0 || intent.extra2 !== 0);
       tx.textContent = intent.stop ? "TX · halt" : moving ? "TX · live" : "TX · idle";
     }
   }
@@ -940,10 +1081,10 @@ export class RemotePad {
       }
       root.querySelectorAll<HTMLButtonElement>("#remote-drive-controls [data-key]").forEach(button => {
         const code = button.dataset.key!;
-        button.disabled = locked || (code !== "Space" && !isRemoteControlEnabled(code, axis, c.extraPort));
+        button.disabled = locked || (code !== "Space" && !isRemoteControlEnabled(code, axis, c.extraPort, c.extra2Port, view));
       });
       for (const code of [...this.keys]) {
-        if (locked || !isRemoteControlEnabled(code, axis, c.extraPort)) this.keys.delete(code);
+        if (locked || !isRemoteControlEnabled(code, axis, c.extraPort, c.extra2Port, view)) this.keys.delete(code);
       }
     }
     const hint = root.querySelector("#remote-arrow-hint");
@@ -984,7 +1125,10 @@ export class RemotePad {
         try { await Promise.all(batch.map(command => this.hub.sendCommand(command))); }
         catch (error) { this.log(error instanceof Error ? error.message : String(error), "error"); }
       }
-    } finally { this.sending = false; }
+    } finally {
+      this.sending = false;
+      if (this.queued) void this.flush();
+    }
   }
 
   private readStored(key: string): unknown {
